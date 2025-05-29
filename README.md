@@ -1,5 +1,6 @@
 # cladokit
 
+[![CMake on a single platform](https://github.com/4ment/cladokit/actions/workflows/cmake-single-platform.yml/badge.svg)](https://github.com/4ment/cladokit/actions/workflows/cmake-single-platform.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://en.cppreference.com/w/cpp/17)
 
