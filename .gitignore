@@ -1,0 +1,51 @@
+# Compiled object files
+*.o
+*.obj
+*.lo
+*.slo
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Compiled Static libraries
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+*.elf
+
+# VSCode settings
+.vscode/
+
+# CMake build folders
+build/
+cmake-build-*/
+
+# Makefile artifacts
+Makefile
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+install_manifest.txt
+
+# Backup files
+*~
+*.swp
+*.bak
+
+# Test output
+*.gcda
+*.gcno
+*.gcov
+
+# Logs
+*.log
+
+# Other
+.DS_Store
+Thumbs.db
