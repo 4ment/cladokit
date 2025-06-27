@@ -13,6 +13,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "cladokit/newick_options.hpp"
+
 namespace cladokit {
 // trim from start (in place)
 inline void LeftTrim(std::string& str) {
@@ -50,8 +52,13 @@ inline bool StartsWithCaseInsensitiveLeftTrim(const std::string& target,
 
 std::vector<std::string> SplitTopLevel(const std::string& str);
 using Converter = std::function<std::any(const std::string&)>;
-void ParseComment(const std::string& comment,
-                  std::map<std::string, std::any>& annotations,
-                  const std::unordered_map<std::string, Converter>& converters);
+void ParseRawComment(const std::string& comment,
+                     std::map<std::string, std::any>& annotations,
+                     const std::unordered_map<std::string, Converter>& converters);
+
+std::string BuildCommentForNewick(const std::string& rawComment,
+                                  const std::map<std::string, std::any>& annotations,
+                                  const NewickExportOptions& options,
+                                  const std::vector<std::string>& annotationKeys);
 
 }  // namespace cladokit

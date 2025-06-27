@@ -8,6 +8,7 @@
 #include <string>
 #include <unordered_set>
 
+using cladokit::Node;
 using cladokit::Tree;
 using std::string;
 using std::vector;
@@ -20,10 +21,14 @@ Tree::Tree(const Node::NodePtr &root) : root_(root) {
             taxonNames_->push_back(node->Name());
         }
     }
+    nodes_.resize(leafCount_);
     for (auto it = root->begin_postorder(); it != root->end_postorder(); ++it) {
         auto node = *it;
         if (!node->IsLeaf()) {
             node->SetId(leafCount_ + internalCount_++);
+            nodes_.push_back(node);
+        } else {
+            nodes_[node->Id()] = node;
         }
     }
     nodeCount_ = leafCount_ + internalCount_;
@@ -34,18 +39,28 @@ Tree::Tree(const Node::NodePtr &root, std::shared_ptr<vector<string>> taxonNames
     UpdateIDs();
 }
 
+void Tree::SetTaxonNames(std::shared_ptr<std::vector<string>> taxonNames) {
+    taxonNames_ = taxonNames;
+    UpdateIDs();
+}
+
 void Tree::UpdateIDs() {
     internalCount_ = 0;
     leafCount_ = taxonNames_->size();
+    nodes_.clear();
+    nodes_.resize(leafCount_);
+
     for (auto it = root_->begin_postorder(); it != root_->end_postorder(); ++it) {
         auto node = *it;
         if (!node->IsLeaf()) {
             node->SetId(leafCount_ + internalCount_++);
+            nodes_.push_back(node);
         } else {
             auto it = std::find(taxonNames_->begin(), taxonNames_->end(), node->Name());
             if (it != taxonNames_->end()) {
                 size_t taxonIndex = std::distance(taxonNames_->begin(), it);
                 node->SetId(taxonIndex);
+                nodes_[taxonIndex] = node;
             } else {
                 std::cerr << "Error: taxon name " << node->Name()
                           << " not found in taxon names" << std::endl;
@@ -55,13 +70,41 @@ void Tree::UpdateIDs() {
     nodeCount_ = leafCount_ + internalCount_;
 }
 
-bool Tree::DeRoot() {
+Node::NodePtr Tree::LeafFromName(const string &name) const {
+    auto it = std::find(taxonNames_->begin(), taxonNames_->end(), name);
+    if (it != taxonNames_->end()) {
+        size_t index = static_cast<size_t>(std::distance(taxonNames_->begin(), it));
+        return nodes_.at(index);
+    } else {
+        return nullptr;
+    }
+}
+
+bool Tree::MakeRooted() {
     size_t degree = root_->ChildCount();
     if (degree > 2) {
-        root_->MakeBinary();
-        UpdateIDs();
+        ReRootAbove(root_->ChildAt(0));
     }
     return degree > 2;
+}
+
+bool Tree::MakeUnRooted() {
+    auto children = root_->Children();
+    size_t degree = children.size();
+    if (degree == 2) {
+        auto it = children.begin();
+        while (it != children.end()) {
+            auto node = *it;
+            if (!node->IsLeaf()) {
+                break;
+            }
+            ++it;
+        }
+        auto node = *it;
+        node->Collapse();
+        UpdateIDs();
+    }
+    return degree == 2;
 }
 
 bool Tree::MakeBinary() {
@@ -82,42 +125,43 @@ bool Tree::MakeBinary() {
 
 string Tree::Newick() { return root_->Newick() + ";"; }
 
-std::string Tree::Newick(const NewickExportOptions &options) {
+string Tree::Newick(const NewickExportOptions &options) {
     return root_->Newick(options) + ";";
 }
 
-std::shared_ptr<Tree> Tree::FromNewick(const string &newick) {
-    auto taxonNames = std::make_shared<std::vector<std::string>>();
+Tree::TreePtr Tree::FromNewick(const string &newick) {
+    auto taxonNames = std::make_shared<std::vector<string>>();
     return FromNewick(newick, taxonNames);
 }
 
-std::shared_ptr<Tree> Tree::FromNewick(
-    const string &newick, std::shared_ptr<std::vector<std::string>> taxonNames) {
+Tree::TreePtr Tree::FromNewick(const string &newick,
+                               std::shared_ptr<std::vector<string>> taxonNames) {
     size_t taxonCounter = 0;
     std::stack<Node::NodePtr> nodeStack;
-    std::vector<std::string> currentTaxonNames;
+    std::vector<string> currentTaxonNames;
     bool justClosed = false;
 
     for (size_t i = 0; i < newick.size(); i++) {
         char c = newick.at(i);
+        // node comment
         if (c == '[') {
-            size_t start = ++i;
+            size_t start = i++;
             while (newick.at(i) != ']') {
                 i++;
             }
-            const std::string comment = newick.substr(start, i - start + 1);
+            const string comment = newick.substr(start, i - start + 1);
             nodeStack.top()->SetComment(comment);
             //   std::cout << "Comment: " << comment << " for "
             //             << nodeStack.top()->GetName() << std::endl;
         } else if (c == ':') {
             size_t start = ++i;
-            // there is a comment between the colon and the branch length
+            // branch comment
             if (newick.at(i) == '[') {
                 while (newick.at(i) != ']') {
                     i++;
                 }
-                const std::string comment = newick.substr(start, i - start + 1);
-                nodeStack.top()->SetComment(comment);
+                const string comment = newick.substr(start, i - start + 1);
+                nodeStack.top()->SetBranchComment(comment);
                 start = ++i;
             }
 
@@ -147,14 +191,10 @@ std::shared_ptr<Tree> Tree::FromNewick(
             if (justClosed) {
                 nodeStack.top()->SetName(identifier);
             } else {
+                // should strip quotes if present and requested
                 size_t taxonIndex = 0;
-                // auto it = std::find(taxonNames.begin(), taxonNames.end(),
-                // identifier); if (it != taxonNames.end()) {
-                //     taxonIndex = std::distance(taxonNames.begin(), it);
-                // } else {
                 taxonIndex = taxonCounter++;
                 currentTaxonNames.push_back(identifier);
-                // }
                 auto node = std::make_shared<Node>(identifier);
                 node->SetId(taxonIndex);
                 // std::cout << "Taxon: " << identifier << " (" << taxonIndex << ")"
@@ -181,9 +221,9 @@ std::shared_ptr<Tree> Tree::FromNewick(
 
     if (taxonNames->empty()) {
         *taxonNames = currentTaxonNames;
-    } else if (std::unordered_set<std::string>(taxonNames->begin(), taxonNames->end()) !=
-               std::unordered_set<std::string>(currentTaxonNames.begin(),
-                                               currentTaxonNames.end())) {
+    } else if (std::unordered_set<string>(taxonNames->begin(), taxonNames->end()) !=
+               std::unordered_set<string>(currentTaxonNames.begin(),
+                                          currentTaxonNames.end())) {
         std::cerr << "Error: taxon names do not match" << std::endl;
         for (const auto &name : currentTaxonNames) {
             if (std::find(taxonNames->begin(), taxonNames->end(), name) ==
@@ -203,26 +243,11 @@ std::shared_ptr<Tree> Tree::FromNewick(
     return tree;
 }
 
-void Tree::ComputeBiPartitions() {
-    if (bitSets_.size() != nodeCount_) {
-        bitSets_.resize(nodeCount_, std::vector<bool>(LeafNodeCount(), false));
-    }
+void Tree::ComputeDescendantBitset() {
     size_t bitsetSize = LeafNodeCount();
     for (auto it = root_->begin_postorder(); it != root_->end_postorder(); ++it) {
         auto node = *it;
-        auto &nodeBitset = bitSets_[node->Id()];
-        if (node->IsLeaf()) {
-            nodeBitset[node->Id()] = true;
-        } else {
-            std::fill(nodeBitset.begin(), nodeBitset.end(), false);
-
-            for (auto child : node->Children()) {
-                auto &childBitset = bitSets_[child->Id()];
-                for (size_t i = 0; i < bitsetSize; i++) {
-                    nodeBitset[i] = nodeBitset[i] | childBitset[i];
-                }
-            }
-        }
+        node->ComputeDescendantBitset(bitsetSize);
     }
 }
 
@@ -234,26 +259,25 @@ void Tree::ReRootAbove(std::shared_ptr<Node> node) {
     auto parentNode = node->Parent();
 
     // node is just below the root, just choose the middle of the branch
-    if (node->Parent()->IsRoot()) {
+    if (parentNode->IsRoot()) {
         double midpoint = node->Distance() / 2;
         node->SetDistance(node->Distance() - midpoint);
+        auto siblings = node->Siblings();
 
         // If the parent node is not binary, we need to make it binary.
-        // The sibliing of node could still be multifurcating.
+        // The sibling of node could still be multifurcating.
         if (parentNode->ChildCount() > 2) {
             auto newNode = std::make_shared<Node>();
-            for (auto child : parentNode->Children()) {
-                if (child != node) {
-                    parentNode->RemoveChild(child);
-                    newNode->AddChild(child);
-                }
+            for (auto sibling : siblings) {
+                parentNode->RemoveChild(sibling);
+                newNode->AddChild(sibling);
             }
             parentNode->AddChild(newNode);
-        }
-        for (auto child : parentNode->Children()) {
-            if (child != node) {
-                child->SetDistance(child->Distance() + midpoint);
-            }
+            newNode->SetDistance(midpoint);
+
+            UpdateIDs();
+        } else {
+            siblings[0]->SetDistance(siblings[0]->Distance() + midpoint);
         }
     } else {
         std::shared_ptr<Node> newRoot = std::make_shared<Node>();
@@ -292,18 +316,44 @@ void Tree::ReRootAbove(std::shared_ptr<Node> node) {
             n = nParent;
             nParent = temp;
 
-            temp = n->Parent();
-            nParent->RemoveChild(n);  // n does not have a parent anymore
-            n->SetParent(temp);
+            if (nParent) {
+                auto temp2 = n->Parent();
+                nParent->RemoveChild(n);  // n does not have a parent anymore
+                n->SetParent(temp2);
+            }
         }
 
         // nparent is the old root and the affected lineage disconnected.
         // n is the child of the old root that was flipped
-        auto unaffectedSibling = nParent->ChildAt(0);
-        unaffectedSibling->SetDistance(unaffectedSibling->Distance() + branchLength);
-        n->AddChild(unaffectedSibling);
+        if (nParent && nParent->ChildCount() > 0) {
+            auto unaffectedSibling = nParent->ChildAt(0);
+            unaffectedSibling->SetDistance(unaffectedSibling->Distance() + branchLength);
+            n->AddChild(unaffectedSibling);
+        }
 
         root_ = newRoot;
         UpdateIDs();
     }
+}
+
+Tree::TreePtr Tree::Random(std::vector<string> taxonNames) {
+    std::vector<std::shared_ptr<Node>> nodes;
+    for (const auto &name : taxonNames) {
+        nodes.push_back(std::make_shared<Node>(name));
+    }
+    while (nodes.size() > 1) {
+        int index1 = rand() % nodes.size();
+        int index2 = rand() % nodes.size();
+        while (index1 == index2) {
+            index2 = rand() % nodes.size();
+        }
+        std::shared_ptr<Node> newNode = std::make_shared<Node>();
+        newNode->AddChild(nodes[index1]);
+        newNode->AddChild(nodes[index2]);
+        nodes.push_back(newNode);
+        nodes.erase(nodes.begin() + std::max(index1, index2));
+        nodes.erase(nodes.begin() + std::min(index1, index2));
+    }
+    return std::make_shared<Tree>(nodes[0],
+                                  std::make_shared<std::vector<string>>(taxonNames));
 }

@@ -125,6 +125,7 @@ std::shared_ptr<Tree> NexusFile::ParseTreeLine(const string &line) {
                 (*taxonNames_)[index] = name;
             }
         }
+        tree->SetTaxonNames(taxonNames_);
         return tree;
     } else {
         return Tree::FromNewick(newick, taxonNames_);
@@ -207,50 +208,6 @@ std::shared_ptr<Tree> NexusFile::Next() {
         currentTreeString_.clear();
     }
     return tree;
-
-    // if (currentLine_ == "") {
-    // } else if (cladokit::StartsWithCaseInsensitive(currentLine_, "tree")) {
-    //     std::shared_ptr<Tree> tree = ParseTreeLine(currentLine_);
-    // }
-    // if (translateParsed_ == false) {
-    //     vector<std::shared_ptr<Tree>> trees;
-    //     std::map<string, size_t> taxonMap;
-    //     if (!taxonNames_->empty()) {
-    //         for (size_t i = 0; i < taxonNames_->size(); i++) {
-    //             taxonMap[taxonNames_->at(i)] = i;
-    //         }
-    //     }
-
-    //     bool found = findBlock("trees");
-    //     if (!found) {
-    //         std::cerr << "Error: trees block not found" << std::endl;
-    //         return nullptr;
-    //     }
-    //     string buffer;
-    //     while (!in_.eof()) {
-    //         std::getline(in_, buffer, '\n');
-    //         if (StartsWithCaseInsensitive(buffer, "end;")) {
-    //             break;
-    //         } else if (StartsWithCaseInsensitiveLeftTrim(buffer, "translate")) {
-    //             ParseTranslate();
-    //         } else if (StartsWithCaseInsensitive(buffer, "tree")) {
-    //             break;
-    //         }
-    //     }
-    //     translateParsed_ = true;
-    //     return ParseTreeLine(buffer);
-    // }
-
-    // string buffer;
-    // while (!in_.eof()) {
-    //     std::getline(in_, buffer, '\n');
-    //     if (cladokit::StartsWithCaseInsensitive(buffer, "end;")) {
-    //         break;
-    //     } else if (cladokit::StartsWithCaseInsensitive(buffer, "tree")) {
-    //         return ParseTreeLine(buffer);
-    //     }
-    // }
-    // return nullptr;
 }
 
 void NexusFile::ParseTranslate() {

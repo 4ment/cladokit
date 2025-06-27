@@ -4,6 +4,7 @@
 #pragma once
 
 #include <cstddef>
+#include <map>
 #include <memory>
 #include <string>
 #include <vector>
@@ -23,6 +24,8 @@ class Tree {
 
     std::shared_ptr<std::vector<std::string>> TaxonNames() const { return taxonNames_; }
 
+    void SetTaxonNames(std::shared_ptr<std::vector<std::string>> taxonNames);
+
     size_t NodeCount() const { return nodeCount_; }
 
     size_t InternalNodeCount() const { return internalCount_; }
@@ -31,9 +34,15 @@ class Tree {
 
     Node::NodePtr Root() const { return root_; }
 
+    Node::NodePtr NodeFromId(size_t id) const { return nodes_.at(id); }
+
+    Node::NodePtr LeafFromName(const std::string& name) const;
+
     bool IsRooted() const { return root_->ChildCount() == 2; }
 
-    bool DeRoot();  // return true if the tree was de-rooted
+    bool MakeRooted();  // return true if the tree was unrooted (i.e. degree > 2)
+
+    bool MakeUnRooted();  // return true if the tree was rooted (i.e. degree = 2)
 
     bool MakeBinary();  // return true if any node was made binary
 
@@ -45,14 +54,14 @@ class Tree {
 
     std::string Newick(const NewickExportOptions& options);
 
-    void ComputeBiPartitions();
-
-    const std::vector<std::vector<bool>>& BiPartitions() const { return bitSets_; }
+    static std::shared_ptr<Tree> Random(std::vector<std::string> taxonNames);
 
     static std::shared_ptr<Tree> FromNewick(const std::string& newick);
 
     static std::shared_ptr<Tree> FromNewick(
         const std::string& newick, std::shared_ptr<std::vector<std::string>> taxonNames);
+
+    void ComputeDescendantBitset();
 
    private:
     Node::NodePtr root_;
@@ -60,6 +69,8 @@ class Tree {
     size_t internalCount_ = 0;
     size_t nodeCount_ = 0;
     std::shared_ptr<std::vector<std::string>> taxonNames_;
-    std::vector<std::vector<bool>> bitSets_;
+    std::vector<Node::NodePtr> nodes_;
+    std::map<std::string, std::any> annotations_;
+    std::string comment_;  // raw comment extraced from newick file
 };
 }  // namespace cladokit

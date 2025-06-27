@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: MIT
 
 #pragma once
+
 #include <memory>
 #include <unordered_map>
 #include <unordered_set>
@@ -23,16 +24,16 @@ struct BiPartitionHash {
     }
 };
 
-static std::unordered_set<BiPartition, BiPartitionHash> GetBiPartitionSet(
-    const Tree::TreePtr& tree) {
-    std::unordered_set<BiPartition, BiPartitionHash> result;
-    const auto& bipartitions = tree->BiPartitions();
-    size_t rootId = tree->Root()->Id();
+using BiPartitionSet = std::unordered_set<BiPartition, BiPartitionHash>;
 
-    for (size_t i = 0; i < bipartitions.size(); ++i) {
-        if (i == rootId) continue;
-        const auto& bip = bipartitions[i];
-        result.insert(bip);
+static BiPartitionSet GetBiPartitionSet(const Tree::TreePtr& tree) {
+    std::unordered_set<BiPartition, BiPartitionHash> result;
+    for (auto it = tree->Root()->begin_postorder(); it != tree->Root()->end_postorder();
+         ++it) {
+        auto node = *it;
+        if (!node->IsRoot() && !node->IsLeaf()) {
+            result.insert(node->DescendantBitset());
+        }
     }
 
     return result;

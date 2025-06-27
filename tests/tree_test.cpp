@@ -61,13 +61,14 @@ TEST(TreeTest, CompareTaxonNames) {
 }
 
 TEST(TreeTest, CreateTreeFromNewickWithComments) {
-    std::string newick = "((A:0.1,B:0.2)[&key=value],C:2);";
+    std::string newick = "((A:0.1,B:0.2)[&key=value]:0.1,C:[&a=1]2);";
     auto taxonNames = std::make_shared<std::vector<std::string>>(
         std::vector<std::string>{"A", "B", "C"});
     auto tree = Tree::FromNewick(newick, taxonNames);
-    tree->Root()->ChildAt(0)->ParseRawComment(
+    tree->Root()->ChildAt(0)->ParseComment(
         {{"key", [](const std::string& val) -> std::any { return val; }}});
-
+    EXPECT_EQ(tree->Root()->ChildAt(0)->Comment(), "[&key=value]");
+    EXPECT_EQ(tree->Root()->ChildAt(1)->BranchComment(), "[&a=1]");
     EXPECT_EQ(tree->NodeCount(), 5);
     EXPECT_EQ(tree->LeafNodeCount(), 3);
     EXPECT_EQ(tree->InternalNodeCount(), 2);
@@ -83,9 +84,9 @@ TEST(TreeTest, DeRootTree) {
     auto tree = Tree::FromNewick(newick, taxonNames);
 
     EXPECT_FALSE(tree->IsRooted());
-    EXPECT_TRUE(tree->DeRoot());
+    EXPECT_TRUE(tree->MakeRooted());
     EXPECT_TRUE(tree->IsRooted());
-    EXPECT_FALSE(tree->DeRoot());
+    EXPECT_FALSE(tree->MakeRooted());
 }
 
 TEST(TreeTest, MakeBinaryTree) {
@@ -104,7 +105,8 @@ TEST(TreeTest, MakeBinaryTree) {
 }
 
 TEST(TreeTest, NewickExport) {
-    std::string newick = "((A:[&a=b]0.1,B:0.2):0.3,C:2);";
+    std::string newick =
+        "((A[&A=C]:[&a=b]0.1,B:0.2)[&abc=bb]:[&aa=bb]0.3,C[&c=d]:2)[&r=1];";
     auto taxonNames = std::make_shared<std::vector<std::string>>(
         std::vector<std::string>{"A", "B", "C"});
     auto tree = Tree::FromNewick(newick, taxonNames);
@@ -113,12 +115,16 @@ TEST(TreeTest, NewickExport) {
 
     NewickExportOptions options;
     options.annotationKeys = {"key"};
+    options.branchAnnotationKeys = {"keyBranch"};
     tree->Root()->ChildAt(0)->SetAnnotation("key", "value");
-    EXPECT_EQ(tree->Newick(options), "((A:0.1,B:0.2):[&key=value]0.3,C:2);");
+    tree->Root()->ChildAt(0)->SetBranchAnnotation("keyBranch", "value");
+    EXPECT_EQ(tree->Newick(options),
+              "((A:0.1,B:0.2)[&key=value]:[&keyBranch=value]0.3,C:2);");
 
     options.annotationKeys.clear();
     options.includeRawComment = true;
-    EXPECT_EQ(tree->Newick(options), "((A:[&a=b]0.1,B:0.2):0.3,C:2);");
+    EXPECT_EQ(tree->Newick(options),
+              "((A[&A=C]:[&a=b]0.1,B:0.2)[&abc=bb]:[&aa=bb]0.3,C[&c=d]:2)[&r=1];");
 
     options.includeRawComment = false;
     options.decimalPrecision = 2;
@@ -131,13 +137,11 @@ TEST(TreeTest, ComputeBipartitions) {
         std::vector<std::string>{"A", "B", "C"});
     auto tree = Tree::FromNewick(newick, taxonNames);
 
-    tree->ComputeBiPartitions();
-    const auto& bipartitions = tree->BiPartitions();
+    tree->ComputeDescendantBitset();
     std::vector<bool> allTrue(3, true);
 
-    EXPECT_EQ(bipartitions[tree->Root()->Id()], allTrue);  // Root includes all taxa
-    EXPECT_EQ(bipartitions.size(), 5);                     // 5 nodes in the tree
-    EXPECT_EQ(bipartitions[0].size(), 3);                  // 3 leaves
+    EXPECT_EQ(tree->Root()->DescendantBitset(), allTrue);   // Root includes all taxa
+    EXPECT_EQ(tree->Root()->DescendantBitset().size(), 3);  // 3 leaves
 }
 
 TEST(TreeTest, PostOrderIterator) {
@@ -194,7 +198,7 @@ TEST(TreeTest, PreOrderIterator) {
     EXPECT_EQ(it, tree->Root()->end_preorder());
 }
 
-TEST(TreeTest, ParseRawComment) {
+TEST(TreeTest, ParseComment) {
     std::string newick = "((A:0.1,B:0.2)[&key=value],C:2);";
     auto taxonNames = std::make_shared<std::vector<std::string>>(
         std::vector<std::string>{"A", "B", "C"});
@@ -206,7 +210,7 @@ TEST(TreeTest, ParseRawComment) {
     for (auto it = tree->Root()->begin_postorder(); it != tree->Root()->end_postorder();
          ++it) {
         auto node = *it;
-        node->ParseRawComment(converters);
+        node->ParseComment(converters);
     }
 
     EXPECT_TRUE(tree->Root()->ChildAt(0)->ContainsAnnotation("key"));
@@ -253,4 +257,22 @@ TEST(TreeTest, RerootAbove2) {
         }
     }
     EXPECT_TRUE(tree->Root()->IsRoot());
+}
+
+TEST(TreeTest, MakeRooted) {
+    std::string newick = "(A:0.1,B:0.2,C:0.4);";
+    auto taxonNames = std::make_shared<std::vector<std::string>>(
+        std::vector<std::string>{"A", "B", "C"});
+    auto tree = Tree::FromNewick(newick, taxonNames);
+
+    // Reroot above B
+    auto nodeToReroot = tree->Root()->ChildAt(1);
+    EXPECT_EQ(nodeToReroot->Name(), "B");
+    tree->ReRootAbove(nodeToReroot);
+    EXPECT_EQ(tree->Newick(), "(B:0.1,(A:0.1,C:0.4):0.1);");
+
+    // MakeRooted: group all children of root except the first one into a new node
+    tree = Tree::FromNewick(newick, taxonNames);
+    tree->MakeRooted();
+    EXPECT_EQ(tree->Newick(), "(A:0.05,(B:0.2,C:0.4):0.05);");
 }

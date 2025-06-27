@@ -17,7 +17,7 @@ TEST(ParseCommentTest, ParsesSimpleKeyValuePairs) {
         {"key1", [](const std::string& val) -> std::any { return std::stod(val); }},
         {"key2", [](const std::string& val) -> std::any { return std::stoi(val); }},
         {"key3", [](const std::string& val) -> std::any { return val; }}};
-    cladokit::ParseComment(input, annotations, converters);
+    cladokit::ParseRawComment(input, annotations, converters);
 
     EXPECT_TRUE(annotations.find("key1") != annotations.end());
     EXPECT_TRUE(annotations.find("key2") != annotations.end());

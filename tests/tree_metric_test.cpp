@@ -19,8 +19,8 @@ TEST(TreeMetricTest, RobinsonFouldsMetric) {
     auto tree1 = Tree::FromNewick("((A:0.1,B:0.2),C:2);", taxonNames);
     auto tree2 = Tree::FromNewick("((B:0.1,C:0.2),A:2);", taxonNames);
 
-    tree1->ComputeBiPartitions();
-    tree2->ComputeBiPartitions();
+    tree1->ComputeDescendantBitset();
+    tree2->ComputeDescendantBitset();
 
     RobinsonFouldsMetric metric;
 
@@ -34,8 +34,8 @@ TEST(TreeMetricTest, RobinsonFouldsMetric2) {
     auto tree1 = Tree::FromNewick("((A,B),(C,D));", taxonNames);
     auto tree2 = Tree::FromNewick("(((A,B),C),D);", taxonNames);
 
-    tree1->ComputeBiPartitions();
-    tree2->ComputeBiPartitions();
+    tree1->ComputeDescendantBitset();
+    tree2->ComputeDescendantBitset();
 
     RobinsonFouldsMetric metric;
 

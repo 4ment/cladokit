@@ -13,12 +13,13 @@ struct NewickExportOptions {
     bool includeBranchLengths = true;
     bool includeRawComment = false;
     std::vector<std::string> annotationKeys;
+    std::vector<std::string> branchAnnotationKeys;
     int decimalPrecision = -1;  // -1 means no precision limit
 
     NewickExportOptions() = default;
 
     NewickExportOptions(bool internalNames, bool branchLengths, bool rawComment,
-                        std::vector<std::string> keys = {})
+                        std::vector<std::string> keys)
         : includeInternalNodeName(internalNames),
           includeBranchLengths(branchLengths),
           includeRawComment(rawComment),

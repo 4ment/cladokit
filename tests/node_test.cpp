@@ -5,6 +5,8 @@
 
 #include <gtest/gtest.h>
 
+#include <cmath>
+
 using cladokit::NewickExportOptions;
 using cladokit::Node;
 
@@ -12,7 +14,7 @@ TEST(NodeTest, CreateNode) {
     Node::NodePtr node = std::make_shared<Node>("TestNode");
     EXPECT_EQ(node->Name(), "TestNode");
     EXPECT_EQ(node->Id(), 0);
-    EXPECT_DOUBLE_EQ(node->Distance(), 0.0);
+    EXPECT_TRUE(std::isnan(node->Distance()));
 }
 
 TEST(NodeTest, SetAndGetName) {

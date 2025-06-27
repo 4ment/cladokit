@@ -22,7 +22,10 @@ class RobinsonFouldsMetric : public TreeMetric {
     double Compute(const Tree::TreePtr& tree1, const Tree::TreePtr& tree2) override {
         auto bip1 = GetBiPartitionSet(tree1);
         auto bip2 = GetBiPartitionSet(tree2);
+        return Compute(bip1, bip2);
+    }
 
+    double Compute(const BiPartitionSet& bip1, const BiPartitionSet& bip2) {
         size_t shared = 0;
         for (const auto& b : bip1) {
             if (bip2.find(b) != bip2.end()) {

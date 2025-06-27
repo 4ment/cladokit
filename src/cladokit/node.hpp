@@ -4,6 +4,8 @@
 #pragma once
 
 #include <any>
+#include <cmath>
+#include <limits>
 #include <map>
 #include <memory>
 #include <stack>
@@ -42,6 +44,8 @@ class Node : public std::enable_shared_from_this<Node> {
 
     const std::vector<NodePtr> &Children() const { return children_; }
 
+    std::vector<NodePtr> Siblings() const;
+
     bool AddChild(const NodePtr &node);
 
     bool RemoveChild(NodePtr node);
@@ -56,19 +60,17 @@ class Node : public std::enable_shared_from_this<Node> {
 
     bool IsLeaf() const;
 
+    void Collapse();
+
+    std::vector<std::string> AnnotationKeys() const;
+
     bool ContainsAnnotation(const std::string &key) const;
 
     void SetAnnotation(const std::string &key, std::any value);
 
     void SetAnnotation(const std::string &key, const char *value);
 
-    std::any Annotation(const std::string &key) const {
-        auto it = annotations_.find(key);
-        if (it == annotations_.end()) {
-            throw std::out_of_range("Key not found: " + key);
-        }
-        return it->second;
-    }
+    std::any Annotation(const std::string &key) const;
 
     template <typename T>
     T Annotation(const std::string &key) const {
@@ -83,11 +85,42 @@ class Node : public std::enable_shared_from_this<Node> {
         }
     }
 
+    void RemoveAnnotation(const std::string &key);
+
     void SetComment(const std::string &comment) { comment_ = comment; }
 
     const std::string &Comment() const { return comment_; }
 
-    void RemoveAnnotation(const std::string &key);
+    std::vector<std::string> BranchAnnotationKeys() const;
+
+    bool ContainsBranchAnnotation(const std::string &key) const;
+
+    void SetBranchAnnotation(const std::string &key, std::any value);
+
+    void SetBranchAnnotation(const std::string &key, const char *value);
+
+    std::any BranchAnnotation(const std::string &key) const;
+
+    template <typename T>
+    T BranchAnnotation(const std::string &key) const {
+        auto it = branchAnnotations_.find(key);
+        if (it == branchAnnotations_.end()) {
+            throw std::out_of_range("Key not found: " + key);
+        }
+        try {
+            return std::any_cast<T>(it->second);
+        } catch (const std::bad_any_cast &) {
+            throw std::runtime_error("Type mismatch for key: " + key);
+        }
+    }
+
+    void SetBranchComment(const std::string &branchComment) {
+        branchComment_ = branchComment;
+    }
+
+    const std::string &BranchComment() const { return branchComment_; }
+
+    void RemoveBranchAnnotation(const std::string &key);
 
     bool MakeBinary();
 
@@ -97,8 +130,15 @@ class Node : public std::enable_shared_from_this<Node> {
 
     std::string Newick(const NewickExportOptions &options) const;
 
-    void ParseRawComment(
+    void ParseComment(
         const std::unordered_map<std::string, cladokit::Converter> &converters);
+
+    void ParseBranchComment(
+        const std::unordered_map<std::string, cladokit::Converter> &converters);
+
+    void ComputeDescendantBitset(size_t size);
+
+    const std::vector<bool> &DescendantBitset() const { return descendantBitset_; }
 
     class PostOrderIterator;
     class PreOrderIterator;
@@ -113,11 +153,15 @@ class Node : public std::enable_shared_from_this<Node> {
     size_t id_ = 0;
     std::weak_ptr<Node> parent_;
     std::vector<NodePtr> children_;
+    double distance_ = std::numeric_limits<double>::quiet_NaN();
     std::map<std::string, std::any> annotations_;
-    double distance_ = 0.0;
+    std::map<std::string, std::any> branchAnnotations_;
     std::string comment_;  // raw comment extraced from newick file
+    std::string branchComment_;
+    std::vector<bool> descendantBitset_;
 
-    std::string MakeCommentForNewick(const NewickExportOptions &options) const;
+    std::pair<std::string, std::string> MakeCommentForNewick(
+        const NewickExportOptions &options) const;
 };
 
 class Node::PostOrderIterator {
